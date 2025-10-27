@@ -11,7 +11,7 @@ This plan validates Requirement R2 for the minimal scraper in `ku_jobs_scraper.p
 
 1. Basic run prints header and rows (Happy path)
    - Steps:
-     - Run: `python ku_jobs_scraper.py`
+     - Run: `src\ku_jobs_scraper.py`
    - Expected:
      - First line is a header: `Title | Category | ID | Department | Campus | Reg/Temp | Review Begins | URL`
      - At least one job row is printed.

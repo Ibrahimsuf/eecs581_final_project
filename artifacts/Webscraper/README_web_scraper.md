@@ -22,8 +22,8 @@ Scope for Sprint 1:
 
 ## Verification Steps
 1) Install dependencies
-   - See the repository `README.md` or run:
-     - `python -m pip install -r requirements.txt`
+   - Run:
+     - `python -m pip install -r src\requirements.txt`
 2) Run the scraper
    - `python ku_jobs_scraper.py`
 3) Observe console output
@@ -32,12 +32,12 @@ Scope for Sprint 1:
 
 ## Evidence
 - Sample output captured: `artifacts\Webscraper\sample_run_output.txt`.
-- Source file: `ku_jobs_scraper.py`.
+- Source file: `src\ku_jobs_scraper.py`.
 
 ## Traceability
 - Requirement: R2 — "Develop web scraper for job listings".
-- Code: `ku_jobs_scraper.py`.
-- Dependency manifest: `requirements.txt`.
+- Code: `src\ku_jobs_scraper.py`.
+- Dependency manifest: `src\requirements.txt`.
 - Artifact docs: `artifacts\Webscraper`.
 
 ## Notes and Constraints
