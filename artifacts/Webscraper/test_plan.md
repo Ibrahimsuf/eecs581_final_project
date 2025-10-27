@@ -56,8 +56,8 @@ This plan validates Requirement R2 for the minimal scraper in `ku_jobs_scraper.p
      - A network error may be raised by `requests` and surfaced to the console. Reconnecting and re-running should succeed. (Graceful handling is optional for Sprint 1.)
 
 ## Evidence Capture
-- Save a representative run to `docs/sprint1/sample_run_output.txt`.
-- Cross-check against acceptance criteria in `docs/sprint1/requirement_R2_web_scraper.md`.
+- Save a representative run to `artifacts\Webscraper\sample_run_output.txt`.
+- Cross-check against acceptance criteria in `artifacts\Webscraper\requirement_R2_web_scraper.md`.
 
 ## Maintenance Notes
 - If the site’s HTML structure changes, update `parse_listings_table` selectors.
