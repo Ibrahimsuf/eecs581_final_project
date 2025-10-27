@@ -28,17 +28,17 @@ Scope for Sprint 1:
    - `python ku_jobs_scraper.py`
 3) Observe console output
    - Expect a header row followed by job lines (Title | Category | ID | Department | Primary Campus | Reg/Temp | Review Begins | URL).
-   - Compare with the example in `docs/sprint1/sample_run_output.txt` (entries will vary over time; structure should match).
+   - Compare with the example in `artifacts\Webscraper\sample_run_output.txt` (entries will vary over time; structure should match).
 
 ## Evidence
-- Sample output captured: `docs/sprint1/sample_run_output.txt`.
+- Sample output captured: `artifacts\Webscraper\sample_run_output.txt`.
 - Source file: `ku_jobs_scraper.py`.
 
 ## Traceability
 - Requirement: R2 — "Develop web scraper for job listings".
 - Code: `ku_jobs_scraper.py`.
 - Dependency manifest: `requirements.txt`.
-- Artifact docs: `docs/sprint1/*`.
+- Artifact docs: `artifacts\Webscraper`.
 
 ## Notes and Constraints
 - Real-time job listings change frequently; the exact entries shown may differ between runs.
