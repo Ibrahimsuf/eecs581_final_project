@@ -1,0 +1,3 @@
+/* Small visual touches */
+.card .badge { font-weight: 500; }
+.offcanvas { width: min(560px, 95vw); }
