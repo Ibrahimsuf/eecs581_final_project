@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "project"))
 from database_helpers import *
 
 conn = setup_db()
