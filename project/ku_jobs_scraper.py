@@ -41,6 +41,21 @@ class JobRow:
     review_begins: Optional[str]
     category: Optional[str]
 
+    def to_api_format(self) -> dict:
+        """Convert to the format expected by app.py"""
+        return {
+            "id": self.posting_id or f"ku_{hash(self.job_url)}",
+            "name": self.title,
+            "short_description": f"{self.department} - {self.primary_campus}" if self.department else "KU Job Posting",
+            "url": self.job_url,
+            "source": "KU Jobs",
+            "category": self.category,
+            "department": self.department,
+            "campus": self.primary_campus,
+            "type": self.reg_temp,
+            "review_begins": self.review_begins
+        }
+
 
 def norm_space(s: Optional[str]) -> Optional[str]:
     if s is None:
