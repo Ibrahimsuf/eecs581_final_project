@@ -13,6 +13,7 @@ def scrape_remoteok():
         response.raise_for_status()
 
         jobs = response.json()[1:]  # first element is metadata
+        api_jobs = []
         for job in jobs:
             title = job.get("position", "")
             category = ", ".join(job.get("tags", []))
@@ -23,9 +24,28 @@ def scrape_remoteok():
             review_begins = job.get("date", "")
             job_url = job.get("url", "")
 
-            print(f"{title} | {category} | {job_id} | {department} | {campus} | {reg_temp} | {review_begins} | {job_url}")
+            # print(f"{title} | {category} | {job_id} | {department} | {campus} | {reg_temp} | {review_begins} | {job_url}")
+
+            # convert to API dict format
+            api_job = {
+                "id": f"remote_{job_id}",
+                "name": title,
+                "short_description": f"Remote position at {department}",
+                "url": job_url,
+                "source": "RemoteOK",
+                "company": department,
+                "location": campus,
+                "date": review_begins
+            }
+
+            # adding break condition bc 100 jobs is a lot
+            api_jobs.append(api_job)
+            if len(api_jobs) >= 10:
+                break
 
             time.sleep(0.2)  # polite delay
+
+        return api_jobs
 
     except requests.RequestException as e:
         print("error fetching data", e)
