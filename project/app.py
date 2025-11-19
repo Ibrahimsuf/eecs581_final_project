@@ -43,8 +43,11 @@ def home():
 def get_jobs():
 
     # ========== READ SKILLS ==========
-    hard_skills_raw = request.form.get('hardSkills', "")
-    soft_skills_raw = request.form.get('softSkills', "")
+    data = request.get_json(silent=True) or {}
+
+    hard_skills_raw = data.get("hardSkills", "")
+    soft_skills_raw = data.get("softSkills", "")
+
 
     hard_skills = [s.strip().lower() for s in hard_skills_raw.split(",") if s.strip()]
     soft_skills = [s.strip().lower() for s in soft_skills_raw.split(",") if s.strip()]
