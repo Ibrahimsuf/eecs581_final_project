@@ -42,49 +42,50 @@ def home():
 @app.route('/get_jobs', methods=['POST'])
 def get_jobs():
 
-    # ========== READ SKILLS ==========
+    # Accept JSON body instead of form
     data = request.get_json(silent=True) or {}
 
     hard_skills_raw = data.get("hardSkills", "")
     soft_skills_raw = data.get("softSkills", "")
 
+    # Support arrays OR comma-separated strings
+    if isinstance(hard_skills_raw, list):
+        hard_skills = [s.lower() for s in hard_skills_raw]
+    else:
+        hard_skills = [s.strip().lower() for s in hard_skills_raw.split(",") if s.strip()]
 
-    hard_skills = [s.strip().lower() for s in hard_skills_raw.split(",") if s.strip()]
-    soft_skills = [s.strip().lower() for s in soft_skills_raw.split(",") if s.strip()]
+    if isinstance(soft_skills_raw, list):
+        soft_skills = [s.lower() for s in soft_skills_raw]
+    else:
+        soft_skills = [s.strip().lower() for s in soft_skills_raw.split(",") if s.strip()]
 
-    # Must provide hard skills
     if not hard_skills:
         return jsonify({"error": "Hard skills are required"}), 400
 
+    # --- Run Scrapers ---
     all_jobs = []
 
-    # ========== KU SCRAPER ==========
+    # KU Scraper
     session = ku_jobs_scraper.get_session()
     try:
         html = ku_jobs_scraper.fetch_html_text(session, ku_jobs_scraper.LIST_URL)
         ku_jobs = ku_jobs_scraper.parse_listings_table(html)
-
         for job in ku_jobs:
-            j = job.to_api_format()
-            all_jobs.append(j)
-
+            all_jobs.append(job.to_api_format())
     except Exception as e:
-        print(f"Error fetching KU jobs: {e}", file=sys.stderr)
+        print("KU scraper error:", e, file=sys.stderr)
 
-    # ========== REMOTEOK SCRAPER ==========
+    # RemoteOK scraper
     try:
         remote_jobs = scrape_remoteok()
         if remote_jobs:
-            for job in remote_jobs:
-                all_jobs.append(job)
+            all_jobs.extend(remote_jobs)
     except Exception as e:
-        print("RemoteOK error:", e, file=sys.stderr)
+        print("RemoteOK scraper error:", e, file=sys.stderr)
 
-
-    # ========== APPLY MATCHING ==========
+    # --- Matching ---
     processed = []
     for job in all_jobs:
-
         desc = job.get("description", "") or job.get("short_description", "")
 
         analysis = analyze_match(desc, hard_skills, soft_skills)
@@ -95,7 +96,6 @@ def get_jobs():
 
         processed.append(job)
 
-    # Sort by weighted score
     processed.sort(key=lambda j: j["match_score"], reverse=True)
 
     return jsonify({
