@@ -49,5 +49,6 @@ def scrape_remoteok():
 
     except requests.RequestException as e:
         print("error fetching data", e)
+        return []
 
-scrape_remoteok()
+# scrape_remoteok()
