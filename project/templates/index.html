@@ -33,16 +33,38 @@
         <h2 class="card-title h4 mb-3 text-center">Find Jobs by Skills</h2>
         <form id="skillForm" class="row gy-2 gx-2 align-items-end">
           <div class="col-12 col-md-8">
-            <label for="skills" class="form-label">Enter your skills</label>
-            <input
-              type="text"
-              id="skills"
-              name="skills"
-              class="form-control"
-              placeholder="e.g. Python, SQL, Flask"
-              required
-            />
-            <div class="form-text">Separate multiple skills with commas.</div>
+            <!-- NEW Hard + Soft Skill Entry -->
+<div class="row gx-2 align-items-end">
+
+  <!-- Hard Skills -->
+  <div class="col-12 col-md-6">
+    <label for="hardSkills" class="form-label">Hard Skills (Main Search)</label>
+    <input
+      type="text"
+      id="hardSkills"
+      name="hardSkills"
+      class="form-control"
+      placeholder="e.g. Python, SQL, React"
+      required
+    />
+    <div class="form-text">Separate skills with commas.</div>
+  </div>
+
+  <!-- Soft Skills -->
+  <div class="col-12 col-md-6">
+    <label for="softSkills" class="form-label">Soft Skills (Optional)</label>
+    <input
+      type="text"
+      id="softSkills"
+      name="softSkills"
+      class="form-control"
+      placeholder="e.g. teamwork, communication"
+    />
+    <div class="form-text">Optional. Used to increase match score.</div>
+  </div>
+
+</div>
+
           </div>
           <div class="col-12 col-md-4 d-grid">
             <button type="submit" class="btn btn-primary">
