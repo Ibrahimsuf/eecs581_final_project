@@ -137,13 +137,7 @@ def login():
 
         return "Invalid credentials", 401
 
-    return render_template_string("""
-        <form method="POST">
-            Username: <input name="username"><br>
-            Password: <input type="password" name="password"><br>
-            <button type="submit">Login</button>
-        </form>
-    """)
+    return render_template("login.html")
 
 
 
@@ -167,15 +161,9 @@ def register():
         conn.commit()
         conn.close()
 
-        return "User created!"
+        return redirect(url_for("login"))
 
-    return render_template_string("""
-        <form method="POST">
-            Username: <input name="username"><br>
-            Password: <input name="password" type="password"><br>
-            <button type="submit">Register</button>
-        </form>
-    """)
+    return render_template("register.html")
 
 
 @app.route("/logout")
