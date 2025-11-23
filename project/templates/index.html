@@ -15,31 +15,26 @@
 <body class="bg-light">
   <nav class="navbar navbar-expand-lg bg-white border-bottom">
   <div class="container">
-    <a class="navbar-brand fw-semibold" href="#">SkillMatch</a>
+
+    <a class="navbar-brand fw-semibold" href="/">SkillMatch</a>
 
     <div class="ms-auto d-flex align-items-center gap-2">
-      <!-- NEW: Profile button -->
+
+      <!-- Profile Button -->
       <a href="/profile" class="btn btn-outline-success">
         <i class="bi bi-person-circle"></i> Profile
       </a>
 
-      <button id="btnShowSaved" class="btn btn-outline-primary me-2">
+      <!-- Saved Jobs -->
+      <button id="btnShowSaved" class="btn btn-outline-primary">
         <i class="bi bi-bookmark-star"></i> Saved (<span id="savedCount">0</span>)
       </button>
 
+      <!-- Clear Saved -->
       <button id="btnClearSaved" class="btn btn-outline-secondary">
         <i class="bi bi-trash"></i> Clear Saved
       </button>
-    <div class="container">
-      <a class="navbar-brand fw-semibold" href="#">SkillMatch for {{ current_user.username }}</a>
-      <div class="ms-auto">
-        <button id="btnShowSaved" class="btn btn-outline-primary me-2">
-          <i class="bi bi-bookmark-star"></i> Saved (<span id="savedCount">0</span>)
-        </button>
-        <button id="btnClearSaved" class="btn btn-outline-secondary">
-          <i class="bi bi-trash"></i> Clear Saved
-        </button>
-      </div>
+
     </div>
   </div>
 </nav>
