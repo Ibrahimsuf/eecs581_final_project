@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-expand-lg bg-white border-bottom mb-4">
+    <div class="container">
+      <a class="navbar-brand" href="/">Job Finder</a>
+      <div class="ms-auto">
+        <a href="/" class="btn btn-outline-primary btn-sm">Back to Search</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h1 class="h4 mb-3 text-center">Your Profile</h1>
+
+            <div id="profile-alert" class="alert d-none" role="alert"></div>
+
+            <div class="text-center mb-4">
+              <div class="mb-2">
+                <img id="profile-photo" class="rounded-circle border"
+                     alt="Profile photo"
+                     style="width: 150px; height: 150px; object-fit: cover; display: none;">
+                <div id="no-photo" class="text-muted small mt-2">
+                  No photo uploaded yet.
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-center gap-2">
+                <input type="file" id="photo-input" accept="image/*" class="form-control form-control-sm" style="max-width: 260px;">
+                <button id="btn-upload-photo" class="btn btn-sm btn-secondary">
+                  Upload Photo
+                </button>
+              </div>
+            </div>
+
+            <form id="profile-form">
+              <div class="mb-3">
+                <label for="name" class="form-label">Name</label>
+                <input id="name" name="name" type="text" class="form-control" placeholder="Your name">
+              </div>
+
+              <div class="mb-3">
+                <label for="info" class="form-label">General Information</label>
+                <textarea id="info" name="info" class="form-control" rows="3"
+                          placeholder="Short bio, role, or summary about yourself"></textarea>
+              </div>
+
+              <div class="mb-3">
+                <label for="soft_skills" class="form-label">Soft Skills</label>
+                <textarea id="soft_skills" name="soft_skills" class="form-control" rows="3"
+                          placeholder="e.g. communication, teamwork, problem-solving"></textarea>
+              </div>
+
+              <div class="d-grid">
+                <button type="submit" id="btn-save-profile" class="btn btn-primary">
+                  Save Profile
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+</body>
+</html>
