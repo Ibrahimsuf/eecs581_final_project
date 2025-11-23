@@ -141,26 +141,66 @@ def logout():
 # ---------------------------------------------------------
 @app.route("/get_jobs", methods=["POST"])
 @login_required
+@app.route("/get_jobs", methods=["POST"])
+@login_required
 def get_jobs():
     skills = request.form["skills"]
 
+    out = []
+
+    # ------------------------
     # KU job scraper
+    # ------------------------
     session = ku_jobs_scraper.get_session()
-    jobs = []
     try:
         html = ku_jobs_scraper.fetch_html_text(session, ku_jobs_scraper.LIST_URL)
         jobs = ku_jobs_scraper.parse_listings_table(html)
+
+        for job in jobs:
+            j = job.to_api_format()
+
+            # Normalize title
+            j["title"] = (
+                j.get("title")
+                or j.get("name")
+                or j.get("role")
+                or j.get("position")
+                or j.get("job_title")
+                or "Untitled Role"
+            )
+
+            out.append(j)
+
     except Exception as e:
         print(f"Error fetching KU jobs: {e}", file=sys.stderr)
 
-    out = [job.to_api_format() for job in jobs]
-
+    # ------------------------
     # RemoteOK scraper
+    # ------------------------
     remote_jobs = scrape_remoteok()
     if remote_jobs:
-        out.extend(remote_jobs)
+        for job in remote_jobs:
 
-    return jsonify({"message": f"Received skills: {skills}", "jobs": out})
+            # Normalize title
+            job["title"] = (
+                job.get("title")
+                or job.get("name")
+                or job.get("role")
+                or job.get("position")
+                or job.get("job_title")
+                or "Untitled Role"
+            )
+
+            out.append(job)
+
+    # ------------------------
+    # Return final results
+    # ------------------------
+    return jsonify({
+        "message": f"Received skills: {skills}",
+        "jobs": out
+    })
+
 
 
 # ---------------------------------------------------------
