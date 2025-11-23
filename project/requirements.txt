@@ -3,3 +3,4 @@ beautifulsoup4>=4.12.3
 lxml>=5.2.1
 Flask>=3.0.0
 flask_sock>=0.7.0
+flask-login>=0.6.3
