@@ -141,8 +141,6 @@ def logout():
 # ---------------------------------------------------------
 @app.route("/get_jobs", methods=["POST"])
 @login_required
-@app.route("/get_jobs", methods=["POST"])
-@login_required
 def get_jobs():
     skills = request.form["skills"]
 
