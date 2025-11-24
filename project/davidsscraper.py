@@ -1,5 +1,6 @@
 import requests
 import time
+from datetime import datetime
 
 def scrape_remoteok():
     url = "https://remoteok.com/api"
@@ -30,12 +31,15 @@ def scrape_remoteok():
             api_job = {
                 "id": f"remote_{job_id}",
                 "name": title,
+                "title": title,
                 "short_description": f"Remote position at {department}",
                 "url": job_url,
                 "source": "RemoteOK",
                 "company": department,
                 "location": campus,
-                "date": review_begins
+                "date": review_begins,
+                "posted_at": _normalize_date_string(review_begins),
+                "skills": job.get("tags", [])
             }
 
             # adding break condition bc 100 jobs is a lot
@@ -50,5 +54,14 @@ def scrape_remoteok():
     except requests.RequestException as e:
         print("error fetching data", e)
         return []
+
+def _normalize_date_string(s):
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(s).replace('Z', '+00:00'))
+        return dt.strftime('%Y-%m-%d')
+    except Exception:
+        return str(s)
 
 # scrape_remoteok()
