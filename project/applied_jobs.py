@@ -1,45 +1,36 @@
-from flask import Blueprint, request, jsonify
-from database_helpers import mark_applied, unmark_applied, get_user_applied_jobs, is_job_applied_by_user
+from typing import List, Dict, Optional
+from database_helpers import get_db_connection
 
-bp = Blueprint('applied_jobs', __name__)
+def mark_applied(user_id: int, job_id: int, notes: Optional[str] = None) -> None:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('INSERT OR IGNORE INTO applied_jobs (user_id, job_id, notes) VALUES (?, ?, ?)', (user_id, job_id, notes))
+    cur.execute('UPDATE applied_jobs SET notes = ? WHERE user_id = ? AND job_id = ?', (notes, user_id, job_id))
+    conn.commit()
+    conn.close()
 
-def _get_current_user_id():
-    uid = request.headers.get('X-User-Id')
-    try:
-        return int(uid)
-    except:
-        return None
+def unmark_applied(user_id: int, job_id: int) -> None:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM applied_jobs WHERE user_id = ? AND job_id = ?', (user_id, job_id))
+    conn.commit()
+    conn.close()
 
-@bp.route('/api/jobs/<int:job_id>/apply', methods=['POST'])
-def apply_job(job_id):
-    user_id = _get_current_user_id()
-    if not user_id:
-        return jsonify({'error': 'unauthenticated'}), 401
-    data = request.get_json(silent=True) or {}
-    notes = data.get('notes')
-    mark_applied(user_id, job_id, notes)
-    return jsonify({'applied': True}), 200
+def get_user_applied_jobs(user_id: int) -> List[Dict]:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT aj.id as id, aj.user_id as user_id, aj.job_id as job_id, aj.notes as notes, aj.applied_at as applied_at, j.name as title, j.description as company FROM applied_jobs aj LEFT JOIN jobs j ON aj.job_id = j.id WHERE aj.user_id = ? ORDER BY aj.applied_at DESC', (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        result.append({k: r[k] for k in r.keys()})
+    return result
 
-@bp.route('/api/jobs/<int:job_id>/apply', methods=['DELETE'])
-def unapply_job(job_id):
-    user_id = _get_current_user_id()
-    if not user_id:
-        return jsonify({'error': 'unauthenticated'}), 401
-    unmark_applied(user_id, job_id)
-    return '', 204
-
-@bp.route('/api/me/applied-jobs', methods=['GET'])
-def list_applied_jobs():
-    user_id = _get_current_user_id()
-    if not user_id:
-        return jsonify({'error': 'unauthenticated'}), 401
-    applied = get_user_applied_jobs(user_id)
-    return jsonify({'applied': applied}), 200
-
-@bp.route('/api/jobs/<int:job_id>/is-applied', methods=['GET'])
-def check_applied(job_id):
-    user_id = _get_current_user_id()
-    if not user_id:
-        return jsonify({'error': 'unauthenticated'}), 401
-    applied = is_job_applied_by_user(user_id, job_id)
-    return jsonify({'applied': applied}), 200
+def is_job_applied_by_user(user_id: int, job_id: int) -> bool:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT 1 FROM applied_jobs WHERE user_id = ? AND job_id = ? LIMIT 1', (user_id, job_id))
+    exists = cur.fetchone() is not None
+    conn.close()
+    return exists
