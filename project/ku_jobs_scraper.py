@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
 """
 KU Jobs Scraper
-
-Purpose: Scrape https://employment.ku.edu/jobs using requests + BeautifulSoup
-and extract core job fields from the listings page.
-
-Feature :
-- Scrape the main listings page
-- Parse and print basic attributes per job row: title, ID, department,
-    primary campus, reg/temp, review begins, URL, category
-- Added later: skill filtering, no deep page fetch, no CSV/JSON export
 """
 from __future__ import annotations
 
 import re
 import sys
+from time import time
+from threading import Lock
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Iterable, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 # Constants and minimal config
 BASE_URL = "https://employment.ku.edu"
@@ -28,6 +22,31 @@ DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; KUJobsMinimal/1.0)",
     "Accept-Language": "en-US,en;q=0.9",
 }
+
+# In-memory detail page cache (timestamped). Process-local.
+DETAIL_CACHE: dict[str, dict[str, object]] = {}
+CACHE_TTL_SEC = 1800  # 30 minutes
+MAX_CACHE_SIZE = 300
+_DETAIL_CACHE_LOCK = Lock()
+
+def _get_cached_detail(url: str) -> Optional[str]:
+    with _DETAIL_CACHE_LOCK:
+        entry = DETAIL_CACHE.get(url)
+        if not entry:
+            return None
+        ts = entry.get("ts", 0)
+        if not isinstance(ts, (int, float)) or time() - ts > CACHE_TTL_SEC:
+            DETAIL_CACHE.pop(url, None)
+            return None
+        return entry.get("text") if isinstance(entry.get("text"), str) else None
+
+def _set_cached_detail(url: str, text: str) -> None:
+    with _DETAIL_CACHE_LOCK:
+        if len(DETAIL_CACHE) >= MAX_CACHE_SIZE:
+            # Drop oldest
+            oldest = min(DETAIL_CACHE.items(), key=lambda kv: kv[1].get("ts", 0))[0]
+            DETAIL_CACHE.pop(oldest, None)
+        DETAIL_CACHE[url] = {"text": text, "ts": time()}
 
 
 @dataclass
@@ -40,12 +59,14 @@ class JobRow:
     reg_temp: Optional[str]
     review_begins: Optional[str]
     category: Optional[str]
+    skills: Optional[List[str]] = None
 
     def to_api_format(self) -> dict:
         """Convert to the format expected by app.py"""
         return {
             "id": self.posting_id or f"ku_{hash(self.job_url)}",
             "name": self.title,
+            "title": self.title,
             "short_description": f"{self.department} - {self.primary_campus}" if self.department else "KU Job Posting",
             "url": self.job_url,
             "source": "KU Jobs",
@@ -53,14 +74,13 @@ class JobRow:
             "department": self.department,
             "campus": self.primary_campus,
             "type": self.reg_temp,
-            "review_begins": self.review_begins
+            "review_begins": self.review_begins,
+            "posted_at": self.review_begins,
+            "skills": self.skills or []
         }
 
 
-def norm_space(s: Optional[str]) -> Optional[str]:
-    if s is None:
-        return None
-    return re.sub(r"\s+", " ", s).strip()
+# Removed unused norm_space helper
 
 
 def get_session(timeout: int = 20) -> requests.Session:
@@ -161,6 +181,7 @@ def parse_listings_table(html: str) -> List[JobRow]:
                 reg_temp=reg_temp or None,
                 review_begins=review_begins or None,
                 category=_extract_category_from_url(url),
+                skills=None,
             )
         )
     return rows
@@ -171,51 +192,203 @@ def _extract_category_from_url(url: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def print_console(rows: List[JobRow], max_width: Optional[int] = None) -> None:
-    """Print rows in a readable table.
-
-    No global line truncation is applied so full URLs are shown.
-    Title/Department/Campus are shortened for readability. Set max_width
-    to an integer to enable global truncation if desired.
+def fetch_detail_and_extract_skills(session: requests.Session, url: str) -> List[str]:
+    """Test fetching KU job detail page and extract skills via keyword matching.
     """
-    headers = ["Title", "Category", "ID", "Department", "Campus", "Reg/Temp", "Review Begins", "URL"]
-    header_line = " | ".join(headers)
-    print(header_line)
-    sep_len = max(len(header_line), 120)
-    print("-" * sep_len)
+    cached = _get_cached_detail(url)
+    if cached is None:
+        try:
+            resp = requests.get(url, headers=DEFAULT_HEADERS, timeout=12)
+            resp.raise_for_status()
+        except Exception:
+            return []
+        soup = BeautifulSoup(resp.text, "lxml")
+        text_raw = _detail_text(soup)
+        _set_cached_detail(url, text_raw)
+    else:
+        text_raw = cached
+    text = text_raw.lower()
+
+    # Curated skill tokens. Keep lowercase; match as whole words where sensible.
+    tokens = [
+        # languages
+        "python", "java", "c++", "c#", "javascript", "typescript", "go", "rust", "ruby", "php", "scala", "r ", " r",
+        # web/fe
+        "html", "css", "react", "angular", "vue", "node", "node.js", "nodejs", "next.js", "nextjs",
+        # data/ai
+        "sql", "nosql", "postgres", "mysql", "sqlite", "oracle", "mongodb", "pandas", "numpy", "scikit-learn",
+        "tensorflow", "pytorch", "spark", "hadoop", "tableau", "power bi", "excel",
+        # devops/cloud
+        "aws", "azure", "gcp", "docker", "kubernetes", "linux", "bash", "git", "ci/cd", "jenkins", "terraform",
+        # backend/web
+        "flask", "django", "fastapi", "graphql", "rest ", " rest", "api",
+        # misc
+        "matlab", "sas", "snowflake",
+    ]
+
+    found: List[str] = []
+    for t in tokens:
+        # coarse matching: word boundary if simple token; otherwise substring
+        tt = t.strip()
+        if not tt:
+            continue
+        if any(ch in tt for ch in ['+', '#', '/', '.', ' ']):
+            if tt in text:
+                found.append(tt.replace(' ', ' ').replace('.js', ''))
+        else:
+            if re.search(rf"\b{re.escape(tt)}\b", text):
+                found.append(tt)
+
+    # normalize variants
+    norm_map = {
+        "node": "node.js",
+        "nodejs": "node.js",
+        "nextjs": "next.js",
+        "rest": "rest",
+        " r": "r",
+        "r ": "r",
+    }
+    out = []
+    for f in found:
+        key = norm_map.get(f, f)
+        if key not in out:
+            out.append(key)
+    return out
+
+
+def _detail_text(soup: BeautifulSoup) -> str:
+    # Try common content wrappers; fallback to all readable text
+    selectors = [
+        "main",
+        "article",
+        ".[role='main']",
+        ".region-content",
+        ".field--name-body",
+        ".node__content",
+    ]
+    for sel in selectors:
+        el = soup.select_one(sel)
+        if el:
+            return el.get_text(separator=" ", strip=True)
+    return soup.get_text(separator=" ", strip=True)
+
+
+def _extract_given_skills_from_text(text: str, given: List[str]) -> List[str]:
+    text = text.lower()
+    found: List[str] = []
+    for raw in given:
+        s = str(raw).strip().lower()
+        if not s:
+            continue
+        # Accept simple variants: node ↔ node.js, ts ↔ typescript, js ↔ javascript
+        variants = {s}
+        if s in {"node", "nodejs", "node.js"}:
+            variants.update({"node", "nodejs", "node.js"})
+        if s in {"js", "javascript"}:
+            variants.update({"js", "javascript"})
+        if s in {"ts", "typescript"}:
+            variants.update({"ts", "typescript"})
+        if s in {"py", "python"}:
+            variants.update({"py", "python"})
+        if s in {"sql"}:
+            variants.update({"sql"})
+
+        matched = False
+        for v in variants:
+            if any(ch in v for ch in ['+', '#', '/', '.', ' ']):
+                if v in text:
+                    matched = True
+                    break
+            else:
+                if re.search(rf"\b{re.escape(v)}\b", text):
+                    matched = True
+                    break
+        if matched:
+            # preserve the original input form in output where possible
+            if raw not in found:
+                found.append(raw)
+    return found
+
+
+def enrich_rows_with_skills(
+    session: requests.Session,
+    rows: Iterable[JobRow],
+    limit: Optional[int] = None,
+    input_skills: Optional[List[str]] = None,
+    max_workers: int = 8,
+) -> None:
+    """Mutates rows to populate .skills by scraping the detail page.
+    """
+    selected: List[JobRow] = []
     for r in rows:
-        cols = [
-            (r.title or "")[:40],
-            r.category or "",
-            r.posting_id or "",
-            (r.department or "")[:24],
-            (r.primary_campus or "")[:24],
-            r.reg_temp or "",
-            r.review_begins or "",
-            r.job_url,
-        ]
-        line = " | ".join(cols)
-        if max_width is not None and len(line) > max_width:
-            line = line[: max_width - 3] + "..."
-        print(line)
+        if limit is not None and len(selected) >= limit:
+            break
+        selected.append(r)
+
+    def worker(row: JobRow) -> Tuple[JobRow, List[str]]:
+        try:
+            cached = _get_cached_detail(row.job_url)
+            if cached is None:
+                resp = requests.get(row.job_url, headers=DEFAULT_HEADERS, timeout=12)
+                resp.raise_for_status()
+                soup = BeautifulSoup(resp.text, "lxml")
+                text_raw = _detail_text(soup)
+                _set_cached_detail(row.job_url, text_raw)
+            else:
+                text_raw = cached
+            if input_skills:
+                skills = _extract_given_skills_from_text(text_raw, input_skills)
+            else:
+                # token extraction will handle caching internally too
+                skills = fetch_detail_and_extract_skills(session, row.job_url)
+            return row, skills
+        except Exception:
+            return row, []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(worker, r) for r in selected]
+        for fut in as_completed(futures):
+            row, skills = fut.result()
+            row.skills = skills
 
 
-def main() -> int:
-    session = get_session()
-    try:
-        html = fetch_html_text(session, LIST_URL)
-    except Exception as e:
-        print(f"Error fetching list page: {e}", file=sys.stderr)
-        return 1
+def filter_rows_by_input_skills(
+    session: requests.Session,
+    rows: Iterable[JobRow],
+    input_skills: List[str],
+    limit: Optional[int] = None,
+    max_workers: int = 8,
+) -> List[JobRow]:
+    """Return only rows whose detail page text contains at least one input skill.
+    """
+    selected: List[JobRow] = []
+    for r in rows:
+        if limit is not None and len(selected) >= limit:
+            break
+        selected.append(r)
 
-    jobs = parse_listings_table(html)
-    if not jobs:
-        print("No jobs parsed from list page. The page structure may have changed.", file=sys.stderr)
-        return 2
+    def worker(row: JobRow) -> Tuple[JobRow, bool]:
+        try:
+            cached = _get_cached_detail(row.job_url)
+            if cached is None:
+                resp = requests.get(row.job_url, headers=DEFAULT_HEADERS, timeout=12)
+                resp.raise_for_status()
+                soup = BeautifulSoup(resp.text, "lxml")
+                text_raw = _detail_text(soup)
+                _set_cached_detail(row.job_url, text_raw)
+            else:
+                text_raw = cached
+            matched = bool(_extract_given_skills_from_text(text_raw, input_skills))
+            return row, matched
+        except Exception:
+            return row, False
 
-    print_console(jobs)
-    return 0
+    kept: List[JobRow] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(worker, r) for r in selected]
+        for fut in as_completed(futures):
+            row, matched = fut.result()
+            if matched:
+                kept.append(row)
+    return kept
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())

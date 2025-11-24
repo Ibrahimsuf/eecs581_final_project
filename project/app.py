@@ -10,6 +10,7 @@ import time
 import json
 import os
 import sys
+from uuid import uuid4
 
 import ku_jobs_scraper
 from davidsscraper import scrape_remoteok
@@ -26,6 +27,8 @@ app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 sock = Sock(app)
+_db_conn = dbh.setup_db()
+dbh.close_db(_db_conn)
 
 # ---------------------------------------------------------
 # LOGIN MANAGER SETUP
@@ -69,6 +72,14 @@ class User(UserMixin):
 def load_user(user_id):
     row = get_user_by_id(user_id)
     return User(*row) if row else None
+
+
+def _derive_job_identifier(job: dict) -> str:
+    for key in ("id", "job_id", "url", "uuid", "slug", "name", "title"):
+        value = job.get(key)
+        if value:
+            return str(value)
+    return uuid4().hex
 
 
 # ---------------------------------------------------------
@@ -213,25 +224,31 @@ def profile_page():
 @app.route("/api/profile", methods=["GET", "POST"])
 @login_required
 def api_profile():
-    conn = dbh.setup_db()
+    conn = dbh.get_db_connection()
+    try:
+        user_key = current_user.username
 
-    if request.method == "GET":
-        profile = dbh.get_user_profile(conn)
-        dbh.close_db(conn)
+        if request.method == "GET":
+            profile = dbh.get_user_profile(conn, user_key)
+            return jsonify(profile)
+
+        data = request.get_json(silent=True) or request.form
+        name = (data.get("name") or "").strip()
+        info = (data.get("info") or "").strip()
+        soft_skills = (data.get("soft_skills") or "").strip()
+
+        dbh.save_user_profile(
+            conn,
+            user_key,
+            name=name,
+            info=info,
+            soft_skills=soft_skills,
+            photo_path=None,
+        )
+        profile = dbh.get_user_profile(conn, user_key)
         return jsonify(profile)
-
-    # POST update
-    data = request.get_json(silent=True) or request.form
-    name = data.get("name", "").strip()
-    info = data.get("info", "").strip()
-    soft_skills = data.get("soft_skills", "").strip()
-
-    dbh.save_user_profile(
-        conn, name=name, info=info, soft_skills=soft_skills, photo_path=None
-    )
-    profile = dbh.get_user_profile(conn)
-    dbh.close_db(conn)
-    return jsonify(profile)
+    finally:
+        dbh.close_db(conn)
 
 
 @app.route("/api/profile/photo", methods=["POST"])
@@ -255,10 +272,12 @@ def upload_profile_photo():
 
     rel_path = f"uploads/{filename}"
 
-    conn = dbh.setup_db()
-    dbh.update_profile_photo(conn, rel_path)
-    profile = dbh.get_user_profile(conn)
-    dbh.close_db(conn)
+    conn = dbh.get_db_connection()
+    try:
+        dbh.update_profile_photo(conn, current_user.username, rel_path)
+        profile = dbh.get_user_profile(conn, current_user.username)
+    finally:
+        dbh.close_db(conn)
 
     return jsonify(profile)
 
@@ -310,6 +329,42 @@ def websocket(ws):
 @login_required
 def job_updates():
     return render_template("job_updates.html")
+
+
+@app.route("/save_job", methods=["POST"])
+@login_required
+def save_job():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "invalid_payload"}), 400
+
+    job_id = _derive_job_identifier(payload)
+    saved_id = f"{current_user.username}:{job_id}"
+
+    try:
+        serialized = json.dumps(payload, separators=(",", ":"))
+        job_clean = json.loads(serialized)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "unserializable_job"}), 400
+
+    conn = dbh.get_db_connection()
+    try:
+        dbh.upsert_saved_job(conn, saved_id, current_user.username, job_clean)
+    finally:
+        dbh.close_db(conn)
+
+    return jsonify({"ok": True, "saved_id": saved_id})
+
+
+@app.route("/saved_jobs", methods=["GET"])
+@login_required
+def saved_jobs():
+    conn = dbh.get_db_connection()
+    try:
+        jobs = dbh.fetch_saved_jobs(conn, current_user.username, limit=200)
+    finally:
+        dbh.close_db(conn)
+    return jsonify({"ok": True, "data": jobs})
 
 
 # ---------------------------------------------------------
