@@ -3,7 +3,10 @@ import os
 import json
 from dataclasses import dataclass, field
 from typing import List, Optional
-import anthropic
+try:
+	import anthropic
+except Exception:  # ImportError or other issues
+	anthropic = None
 import sys
 import io
 import contextlib

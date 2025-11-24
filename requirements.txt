@@ -2,3 +2,4 @@ requests>=2.31.0
 beautifulsoup4>=4.12.3
 lxml>=5.2.1
 flask_sock>=0.7.0
+anthropic
